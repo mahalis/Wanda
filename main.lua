@@ -4,7 +4,10 @@ local world
 
 local leftWall, rightWall, floor, bot, anchor
 
+local targets = {}
+
 WALL_THICKNESS = 20
+TARGET_SIZE = 40
 
 -- need to keep track of fixtures for world callback collisions
 
@@ -60,10 +63,36 @@ function love.draw()
 	drawWorldBox(rightWall)
 	drawWorldBox(ceiling)
 
+	love.graphics.setColor(40, 190, 0, 100)
+	for i = 1, #targets do
+		local target = targets[i]
+		love.graphics.circle("fill", target.body:getX(), target.body:getY(), TARGET_SIZE)
+	end
+
+	love.graphics.setColor(255, 255, 255, 255)
 	love.graphics.circle("line", bot.body:getX(), bot.body:getY(), bot.shape:getRadius(), 20)
 	if anchor.joint then
 		love.graphics.circle("line", anchor.body:getX(), anchor.body:getY(), 4, 20)
 	end
+end
+
+function makeTarget(x, y)
+	target = {}
+	target.shape = love.physics.newCircleShape(TARGET_SIZE)
+	target.body = love.physics.newBody(world, x, y, "static")
+	target.fixture = love.physics.newFixture(target.body, target.shape)
+	target.fixture:setSensor(true)
+	targets[#targets + 1] = target
+end
+
+function clearTargets()
+	print("clearing")
+	for i = 1, #targets do
+		local target = targets[i]
+		target.fixture:destroy()
+		target.body:destroy()
+	end
+	targets = {}
 end
 
 function breakAnchor()
@@ -101,4 +130,43 @@ end
 
 function love.mousereleased(x, y, button)
 	breakAnchor()
+end
+
+function randomTargetPosition(w, h)
+	return v((0.2 + math.random() * 0.6) * w, (0.2 + math.random() * 0.6) * h)
+end
+
+function chooseNewTargetPosition()
+	local w, h = love.window.getDimensions()
+	local i = 0
+	local foundPosition = nil
+	while i < 10 and not foundPosition do
+		local p = randomTargetPosition(w, h)
+		local intersects = false
+		if #targets > 0 then
+			for j = 1, #targets do
+				if vDist(v(targets[j].body:getX(), targets[j].body:getY()), p) < TARGET_SIZE * 3 then
+					intersects = true
+					break
+				end
+			end
+		end
+		if not intersects then
+			foundPosition = p
+		end
+		i = i + 1
+	end
+	return foundPosition
+end
+
+function love.keyreleased(key)
+	clearTargets()
+	
+	for i = 1, 4 do
+		local p = chooseNewTargetPosition()
+		if p then
+			print("spawning target")
+			makeTarget(p.x, p.y)
+		end
+	end
 end

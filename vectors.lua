@@ -18,6 +18,10 @@ function vLen(v1)
 	return math.sqrt(v1.x*v1.x + v1.y*v1.y)
 end
 
+function vDist(v1, v2)
+	return vLen(vSub(v1, v2))
+end
+
 function vNeg(v1)
 	return v(-v1.x, -v1.y)
 end
