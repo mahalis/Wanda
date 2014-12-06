@@ -6,8 +6,11 @@ local leftWall, rightWall, floor, bot, anchor
 
 local targets = {}
 
+local elapsedTime = 0
+
 WALL_THICKNESS = 20
 TARGET_SIZE = 40
+TARGET_FADE_TIME = 0.4
 
 -- need to keep track of fixtures for world callback collisions
 
@@ -63,9 +66,10 @@ function love.draw()
 	drawWorldBox(rightWall)
 	drawWorldBox(ceiling)
 
-	love.graphics.setColor(40, 190, 0, 100)
 	for i = 1, #targets do
 		local target = targets[i]
+		local targetBumpAmount = 1 - math.max(math.min((elapsedTime - target.lastTouchTime) / TARGET_FADE_TIME, 1), 0)
+		love.graphics.setColor(40, 190 + 60 * targetBumpAmount, 0, 100 + 100 * targetBumpAmount)
 		love.graphics.circle("fill", target.body:getX(), target.body:getY(), TARGET_SIZE)
 	end
 
@@ -82,6 +86,7 @@ function makeTarget(x, y)
 	target.body = love.physics.newBody(world, x, y, "static")
 	target.fixture = love.physics.newFixture(target.body, target.shape)
 	target.fixture:setSensor(true)
+	target.lastTouchTime = -TARGET_FADE_TIME -- since the main timeline starts at 0, even if a target spawns right after we start, it shouldn’t show any fading
 	targets[#targets + 1] = target
 end
 
@@ -121,6 +126,8 @@ function drawWorldBox(thing)
 end
 
 function love.update(dt)
+	-- TODO: if we go into slow motion, just multiply this dt value in advance before using it below
+	elapsedTime = elapsedTime + dt
 	world:update(dt)
 end
 
@@ -165,7 +172,6 @@ function love.keyreleased(key)
 	for i = 1, 4 do
 		local p = chooseNewTargetPosition()
 		if p then
-			print("spawning target")
 			makeTarget(p.x, p.y)
 		end
 	end
