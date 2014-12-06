@@ -11,8 +11,11 @@ local started = false
 
 WALL_THICKNESS = 20
 TARGET_SIZE = 30
-TARGET_FADE_TIME = 0.4
-NEW_TARGET_MIN_DISTANCE_FROM_PLAYER = 100
+TARGET_DIE_TIME = 0.4
+NEW_TARGET_MIN_DISTANCE_FROM_PLAYER = 2 * TARGET_SIZE
+
+local score = 0
+local scoreChangedTime = -1
 
 -- need to keep track of fixtures for world callback collisions
 
@@ -22,9 +25,10 @@ local function contactBegan(fixture1, fixture2, contact)
 		for i = 1, #targets do
 			local target = targets[i]
 			local targetFixture = target.fixture
-			if fixture1 == targetFixture or fixture2 == targetFixture then
+			if target.lastTouchTime < 0 and (fixture1 == targetFixture or fixture2 == targetFixture) then
 				-- contacted this target
-				hitTarget(i)
+				adjustScore(2)
+				target.lastTouchTime = elapsedTime -- we’ll remove it in update() later — not safe to do that in physics callback
 				break
 			end
 		end
@@ -33,10 +37,6 @@ local function contactBegan(fixture1, fixture2, contact)
 			-- what happens when you hit the floor?
 		end
 	end
-end
-
-function hitTarget(index)
-	targets[index].lastTouchTime = elapsedTime
 end
 
 function love.load()
@@ -82,6 +82,7 @@ end
 
 function love.draw()
 	love.graphics.setColor(255, 255, 255, 255)
+	local w, h = love.window.getDimensions()
 	drawWorldBox(floor)
 	drawWorldBox(leftWall)
 	drawWorldBox(rightWall)
@@ -89,7 +90,7 @@ function love.draw()
 
 	for i = 1, #targets do
 		local target = targets[i]
-		local targetBumpAmount = 1 - math.max(math.min((elapsedTime - target.lastTouchTime) / TARGET_FADE_TIME, 1), 0)
+		local targetBumpAmount = 1 - math.max(math.min((elapsedTime - target.lastTouchTime) / TARGET_DIE_TIME, 1), 0)
 		love.graphics.setColor(40, 190 + 60 * targetBumpAmount, 0, 100 + 100 * targetBumpAmount)
 		love.graphics.circle("fill", target.body:getX(), target.body:getY(), TARGET_SIZE)
 	end
@@ -100,6 +101,16 @@ function love.draw()
 		love.graphics.circle("line", anchor.body:getX(), anchor.body:getY(), 4, 20)
 		love.graphics.line(anchor.body:getX(), anchor.body:getY(), bot.body:getX(), bot.body:getY())
 	end
+
+	love.graphics.printf(string.format("%03d", score), w - 100, 40, 60, "right")
+end
+
+function adjustScore(value)
+	local lastScore = score
+	score = math.max(0, score + value)
+	if score ~= lastScore then
+		scoreChangedTime = elapsedTime
+	end
 end
 
 function makeTarget(x, y)
@@ -108,7 +119,7 @@ function makeTarget(x, y)
 	target.body = love.physics.newBody(world, x, y, "static")
 	target.fixture = love.physics.newFixture(target.body, target.shape)
 	target.fixture:setSensor(true)
-	target.lastTouchTime = -TARGET_FADE_TIME -- since the main timeline starts at 0, even if a target spawns right after we start, it shouldn’t show any fading
+	target.lastTouchTime = -1
 	return target
 end
 
@@ -140,6 +151,8 @@ function makeAnchor(x, y)
 	local botDirection = vNorm(v(velX, velY))
 	local impulse = vNorm(vSub(botDirection, vMul(toBot, vDot(botDirection, toBot))), 100)
 	bot.body:applyLinearImpulse(impulse.x, impulse.y)
+
+	adjustScore(-1)
 end
 
 function drawWorldBox(thing)
@@ -151,6 +164,20 @@ function love.update(dt)
 		-- TODO: if we go into slow motion, just multiply this dt value in advance before using it below
 		elapsedTime = elapsedTime + dt
 		world:update(dt)
+		for i = 1, #targets do
+			if targets[i].lastTouchTime > 0 and elapsedTime > targets[i].lastTouchTime + TARGET_DIE_TIME then
+				newPosition = chooseNewTargetPosition()
+				if newPosition then
+					targets[i].fixture:destroy()
+					targets[i].body:destroy()
+					
+					targets[i] = makeTarget(newPosition.x, newPosition.y)
+				else
+					-- gross, but oh well.
+					targets[i].lastTouchTime = -1
+				end
+			end
+		end
 	end
 end
 
@@ -170,7 +197,7 @@ function chooseNewTargetPosition()
 	local w, h = love.window.getDimensions()
 	local i = 0
 	local foundPosition = nil
-	while i < 10 and not foundPosition do
+	while i < 100 and not foundPosition do
 		local p = randomTargetPosition(w, h)
 		local intersects = false
 		if vDist(p, v(bot.body:getX(), bot.body:getY())) < TARGET_SIZE + NEW_TARGET_MIN_DISTANCE_FROM_PLAYER then
