@@ -7,15 +7,22 @@ local leftWall, rightWall, floor, bot, anchor
 local targets = {}
 
 local elapsedTime = 0
+local started = false
 
 WALL_THICKNESS = 20
-TARGET_SIZE = 40
+TARGET_SIZE = 30
 TARGET_FADE_TIME = 0.4
 
 -- need to keep track of fixtures for world callback collisions
 
 local function contactBegan(fixture1, fixture2, contact)
-
+	for i = 1, #targets do
+		local target = targets[i]
+		local targetFixture = target.fixture
+		if fixture1 == targetFixture or fixture2 == targetFixture then
+			target.lastTouchTime = elapsedTime
+		end
+	end
 end
 
 function love.load()
@@ -77,6 +84,7 @@ function love.draw()
 	love.graphics.circle("line", bot.body:getX(), bot.body:getY(), bot.shape:getRadius(), 20)
 	if anchor.joint then
 		love.graphics.circle("line", anchor.body:getX(), anchor.body:getY(), 4, 20)
+		love.graphics.line(anchor.body:getX(), anchor.body:getY(), bot.body:getX(), bot.body:getY())
 	end
 end
 
@@ -126,9 +134,11 @@ function drawWorldBox(thing)
 end
 
 function love.update(dt)
-	-- TODO: if we go into slow motion, just multiply this dt value in advance before using it below
-	elapsedTime = elapsedTime + dt
-	world:update(dt)
+	if started then
+		-- TODO: if we go into slow motion, just multiply this dt value in advance before using it below
+		elapsedTime = elapsedTime + dt
+		world:update(dt)
+	end
 end
 
 function love.mousepressed(x, y, button)
@@ -167,6 +177,7 @@ function chooseNewTargetPosition()
 end
 
 function love.keyreleased(key)
+	started = true
 	clearTargets()
 	
 	for i = 1, 4 do
