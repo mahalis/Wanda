@@ -12,17 +12,31 @@ local started = false
 WALL_THICKNESS = 20
 TARGET_SIZE = 30
 TARGET_FADE_TIME = 0.4
+NEW_TARGET_MIN_DISTANCE_FROM_PLAYER = 100
 
 -- need to keep track of fixtures for world callback collisions
 
 local function contactBegan(fixture1, fixture2, contact)
-	for i = 1, #targets do
-		local target = targets[i]
-		local targetFixture = target.fixture
-		if fixture1 == targetFixture or fixture2 == targetFixture then
-			target.lastTouchTime = elapsedTime
+	local botFixture = bot.fixture
+	if fixture1 == botFixture or fixture2 == botFixture then
+		for i = 1, #targets do
+			local target = targets[i]
+			local targetFixture = target.fixture
+			if fixture1 == targetFixture or fixture2 == targetFixture then
+				-- contacted this target
+				hitTarget(i)
+				break
+			end
+		end
+
+		if fixture1 == floor.fixture or fixture2 == floor.fixture then
+			-- what happens when you hit the floor?
 		end
 	end
+end
+
+function hitTarget(index)
+	targets[index].lastTouchTime = elapsedTime
 end
 
 function love.load()
@@ -95,11 +109,10 @@ function makeTarget(x, y)
 	target.fixture = love.physics.newFixture(target.body, target.shape)
 	target.fixture:setSensor(true)
 	target.lastTouchTime = -TARGET_FADE_TIME -- since the main timeline starts at 0, even if a target spawns right after we start, it shouldn’t show any fading
-	targets[#targets + 1] = target
+	return target
 end
 
 function clearTargets()
-	print("clearing")
 	for i = 1, #targets do
 		local target = targets[i]
 		target.fixture:destroy()
@@ -160,6 +173,10 @@ function chooseNewTargetPosition()
 	while i < 10 and not foundPosition do
 		local p = randomTargetPosition(w, h)
 		local intersects = false
+		if vDist(p, v(bot.body:getX(), bot.body:getY())) < TARGET_SIZE + NEW_TARGET_MIN_DISTANCE_FROM_PLAYER then
+			intersects = true
+			break
+		end
 		if #targets > 0 then
 			for j = 1, #targets do
 				if vDist(v(targets[j].body:getX(), targets[j].body:getY()), p) < TARGET_SIZE * 3 then
@@ -177,13 +194,13 @@ function chooseNewTargetPosition()
 end
 
 function love.keyreleased(key)
-	started = true
-	clearTargets()
-	
-	for i = 1, 4 do
-		local p = chooseNewTargetPosition()
-		if p then
-			makeTarget(p.x, p.y)
+	if not started then
+		for i = 1, 4 do
+			local p = chooseNewTargetPosition()
+			if p then
+				targets[#targets + 1] = makeTarget(p.x, p.y)
+			end
 		end
+		started = true
 	end
 end
