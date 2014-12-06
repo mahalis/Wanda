@@ -38,23 +38,36 @@ function love.load()
 	floor.fixture:setRestitution(1)
 
 	bot = {}
-	bot.shape = love.physics.newCircleShape(50)
+	bot.shape = love.physics.newCircleShape(10)
 	bot.body = love.physics.newBody(world, w / 2, 100, "dynamic")
 	bot.fixture = love.physics.newFixture(bot.body, bot.shape)
 	bot.fixture:setRestitution(0.9)
 
 	anchor = {}
-	anchor.body = love.physics.newBody(world, w/4, 100, "static")
-	anchor.joint = love.physics.newDistanceJoint(anchor.body, bot.body, anchor.body:getX(), anchor.body:getY(), bot.body:getX(), bot.body:getY())
+	anchor.body = love.physics.newBody(world, 0, 0, "static")
 end
 
 function love.draw()
 	love.graphics.setColor(255, 255, 255, 255)
-	drawWorldBox(floor)
-	drawWorldBox(leftWall)
-	drawWorldBox(rightWall)
+	--drawWorldBox(floor)
+	--drawWorldBox(leftWall)
+	--drawWorldBox(rightWall)
 
 	love.graphics.circle("line", bot.body:getX(), bot.body:getY(), bot.shape:getRadius(), 20)
+	love.graphics.circle("line", anchor.body:getX(), anchor.body:getY(), 4, 20)
+end
+
+function breakAnchor()
+	if anchor.joint then
+		anchor.joint:destroy()
+	end
+	anchor.joint = nil
+end
+
+function makeAnchor(x, y)
+	breakAnchor()
+	anchor.body:setPosition(x,y)
+	anchor.joint = love.physics.newDistanceJoint(anchor.body, bot.body, x, y, bot.body:getX(), bot.body:getY())
 end
 
 function drawWorldBox(thing)
@@ -66,5 +79,5 @@ function love.update(dt)
 end
 
 function love.mousereleased(x, y, button)
-	
+	makeAnchor(x,y)
 end
