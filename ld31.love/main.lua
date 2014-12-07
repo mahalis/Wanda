@@ -94,12 +94,14 @@ function love.load()
 
 	bot = {}
 	bot.shape = love.physics.newCircleShape(30)
-	bot.body = love.physics.newBody(world, w / 2, 100, "dynamic")
+	bot.body = love.physics.newBody(world, 0, 0, "dynamic") -- 0,0 for now — reset() is responsible for the actual starting position
 	bot.fixture = love.physics.newFixture(bot.body, bot.shape)
 	bot.fixture:setRestitution(0.9)
 
 	anchor = {}
 	anchor.body = love.physics.newBody(world, 0, 0, "static")
+
+	reset()
 end
 
 function love.draw()
@@ -228,15 +230,30 @@ function love.update(dt)
 	end
 end
 
+function reset()
+	clearTargets()
+	breakAnchor()
+
+	local w, h = love.window.getDimensions()
+	bot.body:setPosition(w / 2, h * 0.2)
+	bot.body:setAngularVelocity(0)
+	bot.body:setLinearVelocity(0, 0)
+	started = false
+end
+
+function start()
+	for i = 1, 3 do
+		local p = chooseNewTargetPosition()
+		if p then
+			targets[#targets + 1] = makeTarget(p.x, p.y)
+		end
+	end
+	started = true
+end
+
 function love.mousepressed(x, y, button)
 	if not started then
-		for i = 1, 3 do
-			local p = chooseNewTargetPosition()
-			if p then
-				targets[#targets + 1] = makeTarget(p.x, p.y)
-			end
-		end
-		started = true
+		start()
 	else
 		makeAnchor(x,y)
 	end
