@@ -31,7 +31,7 @@ local function contactBegan(fixture1, fixture2, contact)
 			local targetFixture = target.fixture
 			if target.lastTouchTime < 0 and (fixture1 == targetFixture or fixture2 == targetFixture) then
 				-- contacted this target
-				adjustScore(2)
+				adjustScore(3)
 				target.lastTouchTime = elapsedTime -- we’ll remove it in update() later — not safe to do that in physics callback
 				break
 			end
@@ -100,12 +100,7 @@ end
 function love.draw()
 	love.graphics.setColor(255, 255, 255, 255)
 	local w, h = love.window.getDimensions()
-	--[[
-	drawWorldBox(floor)
-	drawWorldBox(leftWall)
-	drawWorldBox(rightWall)
-	drawWorldBox(ceiling)
-	]]
+	
 	love.graphics.draw(backgroundImage, 0, 0)
 
 	local ringW, ringH = ringImages[1]:getDimensions()
@@ -115,9 +110,6 @@ function love.draw()
 		local y = target.body:getY()
 		local deathTime = (elapsedTime - target.lastTouchTime) / TARGET_DIE_TIME
 
-		--love.graphics.setColor(40, 190 + 60 * targetBumpAmount, 0, 240 * targetBumpAmount)
-		--love.graphics.circle("fill", x, y, TARGET_SIZE * 2)
-		love.graphics.setColor(255, 255, 255, 255)
 		local growthTime = (elapsedTime - target.spawnTime) / TARGET_GROW_TIME
 		local scale = 1
 		if growthTime < 1 then
@@ -139,7 +131,7 @@ function love.draw()
 	
 	love.graphics.setColor(0, 0, 0, 255)
 	if anchor.joint then
-		love.graphics.circle("line", anchor.body:getX(), anchor.body:getY(), 4, 20)
+		love.graphics.circle("fill", anchor.body:getX(), anchor.body:getY(), 4, 20)
 		local mouthX, mouthY = bot.body:getWorldPoint(0, 0)
 		love.graphics.line(anchor.body:getX(), anchor.body:getY(), mouthX, mouthY)
 	end
@@ -202,11 +194,7 @@ function makeAnchor(x, y)
 	local cX, cY = bot.body:getWorldCenter()
 	bot.body:applyLinearImpulse(impulse.x, impulse.y, cX, cY)
 
-	adjustScore(-1)
-end
-
-function drawWorldBox(thing)
-	love.graphics.polygon("fill", thing.body:getWorldPoints(thing.shape:getPoints()))
+	adjustScore(-2)
 end
 
 function love.update(dt)
@@ -240,7 +228,7 @@ function love.mousereleased(x, y, button)
 end
 
 function randomTargetPosition(w, h)
-	return v((0.2 + math.random() * 0.6) * w, (0.2 + math.random() * 0.6) * h)
+	return v((0.1 + math.random() * 0.8) * w, (0.1 + math.random() * 0.8) * h)
 end
 
 function chooseNewTargetPosition()
