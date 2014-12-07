@@ -21,6 +21,8 @@ local scoreChangedTime = -1
 local backgroundImage, wandaImage
 local ringImages = {}
 
+local scoreBigFont, scoreLittleFont
+
 -- need to keep track of fixtures for world callback collisions
 
 local function contactBegan(fixture1, fixture2, contact)
@@ -58,6 +60,9 @@ function love.load()
 	for i = 1, 3 do
 		ringImages[i] = love.graphics.newImage("graphics/ring" .. tostring(i) .. ".png")
 	end
+
+	scoreBigFont = love.graphics.newFont(30)
+	scoreLittleFont = love.graphics.newFont(20)
 
 	local w, h = love.window.getDimensions()
 	world = love.physics.newWorld(0, 400) -- second parameter is Y gravity
@@ -140,8 +145,12 @@ function love.draw()
 	local wandaW, wandaH = wandaImage:getDimensions()
 	love.graphics.draw(wandaImage, bot.body:getX(), bot.body:getY(), bot.body:getAngle(), 1, 1, wandaW / 2, wandaH / 2)
 
-	love.graphics.setColor(0, 0, 0, 255)
-	love.graphics.printf(string.format("%03d", score), w - 100, 40, 60, "right")
+	love.graphics.setColor(60, 80, 100, 255)
+	love.graphics.setFont(scoreBigFont)
+	love.graphics.printf(string.format("%03d", score), 18, h - 48, 60, "left")
+	love.graphics.setColor(60, 80, 100, 128)
+	love.graphics.setFont(scoreLittleFont)
+	love.graphics.printf("score", 80, h - 38, 60, "left")
 end
 
 function adjustScore(value)
@@ -220,7 +229,17 @@ function love.update(dt)
 end
 
 function love.mousepressed(x, y, button)
-	makeAnchor(x,y)
+	if not started then
+		for i = 1, 3 do
+			local p = chooseNewTargetPosition()
+			if p then
+				targets[#targets + 1] = makeTarget(p.x, p.y)
+			end
+		end
+		started = true
+	else
+		makeAnchor(x,y)
+	end
 end
 
 function love.mousereleased(x, y, button)
@@ -256,16 +275,4 @@ function chooseNewTargetPosition()
 		i = i + 1
 	end
 	return foundPosition
-end
-
-function love.keyreleased(key)
-	if not started then
-		for i = 1, 3 do
-			local p = chooseNewTargetPosition()
-			if p then
-				targets[#targets + 1] = makeTarget(p.x, p.y)
-			end
-		end
-		started = true
-	end
 end
