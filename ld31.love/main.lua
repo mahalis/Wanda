@@ -14,11 +14,14 @@ TARGET_SIZE = 20
 TARGET_DIE_TIME = 0.4
 NEW_TARGET_MIN_DISTANCE_FROM_PLAYER = 2 * TARGET_SIZE
 TARGET_GROW_TIME = 0.2
+SCORE_BLINK_TIME = 0.3
 
 local score = 0
+local lastScore = 0
 local scoreChangedTime = -1
 local streak = 0
 local streakChangedTime = -1
+local lastStreak = 0
 local hitTargetWithLastAnchor = false
 
 local backgroundImage, wandaImage
@@ -125,6 +128,11 @@ function love.load()
 	reset()
 end
 
+-- yes the naming is silly; this doesn't have anything to do with colors. whatever, I don’t feel like typing mixThreeNumberTables
+function mixColors(a, b, f)
+	return {a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2]), a[3] + f * (b[3] - a[3])}
+end
+
 function love.draw()
 	love.graphics.setColor(255, 255, 255, 255)
 	local w, h = love.window.getDimensions()
@@ -178,18 +186,34 @@ function love.draw()
 	local wandaW, wandaH = wandaImage:getDimensions()
 	love.graphics.draw(wandaImage, bot.body:getX(), bot.body:getY(), bot.body:getAngle(), 1, 1, wandaW / 2, wandaH / 2)
 
-	love.graphics.setColor(60, 80, 100, 255)
-	love.graphics.setFont(scoreBigFont)
-	love.graphics.printf(string.format("%03d", score), 18, h - 48, 60, "left")
-	love.graphics.printf(string.format("%02d", streak), w - 48, h - 48, 30, "right")
-	love.graphics.setColor(60, 80, 100, 128)
-	love.graphics.setFont(scoreLittleFont)
-	love.graphics.printf("score", 80, h - 38, 60, "left")
-	love.graphics.printf("streak", w - 122, h - 38, 60, "right")
+	if started then
+		local baseColor = {60, 80, 100}
+		local goodColor = {20, 140, 60}
+		local badColor = {150, 70, 30}
+		local scoreColor = baseColor
+		local streakColor = baseColor
+		if scoreChangedTime > -1 then
+			scoreColor = mixColors((score > lastScore and goodColor or badColor), baseColor, math.min(1, math.max(0, (elapsedTime - scoreChangedTime) / SCORE_BLINK_TIME)))
+		end
+		if streakChangedTime > -1 then
+			streakColor = mixColors((streak > lastStreak and goodColor or badColor), baseColor, math.min(1, math.max(0, (elapsedTime - streakChangedTime) / SCORE_BLINK_TIME)))
+		end
+		love.graphics.setFont(scoreBigFont)
+		love.graphics.setColor(scoreColor[1], scoreColor[2], scoreColor[3], 255)
+		love.graphics.printf(string.format("%03d", score), 18, h - 48, 60, "left")
+		love.graphics.setColor(streakColor[1], streakColor[2], streakColor[3], 255)
+		love.graphics.printf(string.format("%02d", streak), w - 48, h - 48, 30, "right")
+		love.graphics.setFont(scoreLittleFont)
+		love.graphics.setColor(scoreColor[1], scoreColor[2], scoreColor[3], 128)
+		love.graphics.printf("score", 80, h - 38, 60, "left")
+		love.graphics.setColor(streakColor[1], streakColor[2], streakColor[3], 128)
+		love.graphics.printf("streak", w - 122, h - 38, 60, "right")
+		-- 150, 70, 30
+	end
 end
 
 function adjustScore(value)
-	local lastScore = score
+	lastScore = score
 	score = math.max(0, score + value)
 	if score ~= lastScore then
 		scoreChangedTime = elapsedTime
@@ -197,7 +221,7 @@ function adjustScore(value)
 end
 
 function setStreak(value)
-	local lastStreak = streak
+	lastStreak = streak
 	streak = value
 	if streak ~= lastStreak then
 		streakChangedTime = elapsedTime
@@ -280,6 +304,8 @@ end
 function reset()
 	clearTargets()
 	breakAnchor()
+	score = 0
+	streak = 0
 
 	local w, h = love.window.getDimensions()
 	bot.body:setPosition(w / 2, h * 0.2)
