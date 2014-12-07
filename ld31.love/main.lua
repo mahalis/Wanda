@@ -17,6 +17,9 @@ TARGET_GROW_TIME = 0.2
 
 local score = 0
 local scoreChangedTime = -1
+local streak = 0
+local streakChangedTime = -1
+local hitTargetWithLastAnchor = false
 
 local backgroundImage, wandaImage
 local ringImages = {}
@@ -34,6 +37,9 @@ local function contactBegan(fixture1, fixture2, contact)
 			if target.lastTouchTime < 0 and (fixture1 == targetFixture or fixture2 == targetFixture) then
 				-- contacted this target
 				adjustScore(3)
+				hitTargetWithLastAnchor = true
+				setStreak(streak + 1)
+
 				target.lastTouchTime = elapsedTime -- we’ll remove it in update() later — not safe to do that in physics callback
 				break
 			end
@@ -150,9 +156,11 @@ function love.draw()
 	love.graphics.setColor(60, 80, 100, 255)
 	love.graphics.setFont(scoreBigFont)
 	love.graphics.printf(string.format("%03d", score), 18, h - 48, 60, "left")
+	love.graphics.printf(string.format("%02d", streak), w - 48, h - 48, 30, "right")
 	love.graphics.setColor(60, 80, 100, 128)
 	love.graphics.setFont(scoreLittleFont)
 	love.graphics.printf("score", 80, h - 38, 60, "left")
+	love.graphics.printf("streak", w - 122, h - 38, 60, "right")
 end
 
 function adjustScore(value)
@@ -160,6 +168,14 @@ function adjustScore(value)
 	score = math.max(0, score + value)
 	if score ~= lastScore then
 		scoreChangedTime = elapsedTime
+	end
+end
+
+function setStreak(value)
+	local lastStreak = streak
+	streak = value
+	if streak ~= lastStreak then
+		streakChangedTime = elapsedTime
 	end
 end
 
@@ -206,6 +222,11 @@ function makeAnchor(x, y)
 	bot.body:applyLinearImpulse(impulse.x, impulse.y, cX, cY)
 
 	adjustScore(-2)
+
+	if not hitTargetWithLastAnchor then
+		setStreak(0)
+	end
+	hitTargetWithLastAnchor = false
 end
 
 function love.update(dt)
