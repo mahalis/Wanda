@@ -26,6 +26,8 @@ local ringImages = {}
 
 local scoreBigFont, scoreLittleFont
 
+local titleImages = {}
+
 -- need to keep track of fixtures for world callback collisions
 
 local function contactBegan(fixture1, fixture2, contact)
@@ -61,14 +63,25 @@ function love.load()
 	love.graphics.setBackgroundColor(56, 60, 64)
 	love.graphics.setLineStyle("smooth")
 
+	-- images
+
 	backgroundImage = love.graphics.newImage("graphics/background.jpg")
 	wandaImage = love.graphics.newImage("graphics/wanda.png")
 	for i = 1, 3 do
 		ringImages[i] = love.graphics.newImage("graphics/ring" .. tostring(i) .. ".png")
 	end
 
+	local titleImageNames = {"title", "story row 1", "story row 2", "story row 3", "instructions"}
+	for i = 1, #titleImageNames do
+		titleImages[i] = love.graphics.newImage("graphics/" .. titleImageNames[i] .. ".png")
+	end
+
+	-- fonts
+
 	scoreBigFont = love.graphics.newFont(30)
 	scoreLittleFont = love.graphics.newFont(20)
+
+	-- physics
 
 	local w, h = love.window.getDimensions()
 	world = love.physics.newWorld(0, 400) -- second parameter is Y gravity
@@ -107,6 +120,8 @@ function love.load()
 	anchor = {}
 	anchor.body = love.physics.newBody(world, 0, 0, "static")
 
+	-- get gameplay stuff ready
+
 	reset()
 end
 
@@ -116,37 +131,47 @@ function love.draw()
 	
 	love.graphics.draw(backgroundImage, 0, 0)
 
-	local ringW, ringH = ringImages[1]:getDimensions()
-	for i = 1, #targets do
-		local target = targets[i]
-		local x = target.body:getX()
-		local y = target.body:getY()
-		local deathTime = (elapsedTime - target.lastTouchTime) / TARGET_DIE_TIME
+	if started then
+		local ringW, ringH = ringImages[1]:getDimensions()
+		for i = 1, #targets do
+			local target = targets[i]
+			local x = target.body:getX()
+			local y = target.body:getY()
+			local deathTime = (elapsedTime - target.lastTouchTime) / TARGET_DIE_TIME
 
-		local growthTime = (elapsedTime - target.spawnTime) / TARGET_GROW_TIME
-		local scale = 1
-		if growthTime < 1 then
-			if growthTime < 0.5 then
-				scale = slerp(0, 1.2, growthTime / 0.5)
-			else
-				scale = slerp(1.2, 1, (growthTime - 0.5) / 0.5)
+			local growthTime = (elapsedTime - target.spawnTime) / TARGET_GROW_TIME
+			local scale = 1
+			if growthTime < 1 then
+				if growthTime < 0.5 then
+					scale = slerp(0, 1.2, growthTime / 0.5)
+				else
+					scale = slerp(1.2, 1, (growthTime - 0.5) / 0.5)
+				end
+			elseif target.lastTouchTime > 0 then
+				if deathTime < 0.3 then
+					scale = slerp(1, 1.2, deathTime / 0.3)
+				else
+					scale = slerp(1.2, 0, (deathTime - 0.3) / 0.7)
+				end
 			end
-		elseif target.lastTouchTime > 0 then
-			if deathTime < 0.3 then
-				scale = slerp(1, 1.2, deathTime / 0.3)
-			else
-				scale = slerp(1.2, 0, (deathTime - 0.3) / 0.7)
-			end
+			love.graphics.draw(ringImages[1 + (math.floor((elapsedTime + target.random * 3) * 10) % 3)], x, y, 0, scale, scale, ringW / 2, ringH / 2)
 		end
-		love.graphics.draw(ringImages[1 + (math.floor((elapsedTime + target.random * 3) * 10) % 3)], x, y, 0, scale, scale, ringW / 2, ringH / 2)
-	end
 
-	
-	love.graphics.setColor(0, 0, 0, 255)
-	if anchor.joint then
-		love.graphics.circle("fill", anchor.body:getX(), anchor.body:getY(), 4, 20)
-		local mouthX, mouthY = bot.body:getWorldPoint(0, 0)
-		love.graphics.line(anchor.body:getX(), anchor.body:getY(), mouthX, mouthY)
+		
+		love.graphics.setColor(0, 0, 0, 255)
+		if anchor.joint then
+			love.graphics.circle("fill", anchor.body:getX(), anchor.body:getY(), 4, 20)
+			local mouthX, mouthY = bot.body:getWorldPoint(0, 0)
+			love.graphics.line(anchor.body:getX(), anchor.body:getY(), mouthX, mouthY)
+		end
+	else
+		-- either title screen or end-game state
+		local titleImageYs = {158, 228, 300, 372, 480}
+		for i = 1, #titleImages do
+			local image = titleImages[i]
+			local imageW, imageH = image:getDimensions()
+			love.graphics.draw(image, w / 2, titleImageYs[i], 0, 1, 1, imageW / 2, 0)
+		end
 	end
 
 	love.graphics.setColor(255, 255, 255, 255)
@@ -230,9 +255,10 @@ function makeAnchor(x, y)
 end
 
 function love.update(dt)
+	-- TODO: if we go into slow motion, just multiply this dt value in advance before using it below
+	elapsedTime = elapsedTime + dt
+
 	if started then
-		-- TODO: if we go into slow motion, just multiply this dt value in advance before using it below
-		elapsedTime = elapsedTime + dt
 		world:update(dt)
 		for i = 1, #targets do
 			if targets[i].lastTouchTime > 0 and elapsedTime > targets[i].lastTouchTime + TARGET_DIE_TIME then
@@ -285,7 +311,7 @@ function love.mousereleased(x, y, button)
 end
 
 function randomTargetPosition(w, h)
-	return v((0.1 + math.random() * 0.8) * w, (0.1 + math.random() * 0.8) * h)
+	return v((0.1 + math.random() * 0.8) * w, (0.1 + math.random() * 0.7) * h)
 end
 
 function chooseNewTargetPosition()
