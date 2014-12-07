@@ -13,13 +13,13 @@ WALL_THICKNESS = 20
 TARGET_SIZE = 20
 TARGET_DIE_TIME = 0.4
 NEW_TARGET_MIN_DISTANCE_FROM_PLAYER = 2 * TARGET_SIZE
-MOUTH_X = -32
-MOUTH_Y = 3
+TARGET_GROW_TIME = 0.2
 
 local score = 0
 local scoreChangedTime = -1
 
-local backgroundImage, targetImage, wandaImage
+local backgroundImage, wandaImage
+local ringImages = {}
 
 -- need to keep track of fixtures for world callback collisions
 
@@ -43,13 +43,21 @@ local function contactBegan(fixture1, fixture2, contact)
 	end
 end
 
+function slerp(a, b, f)
+	f = math.max(math.min(f, 1), 0)
+
+	return a + (b - a) * (1 - math.cos(f * math.pi)) / 2
+end
+
 function love.load()
 	love.graphics.setBackgroundColor(56, 60, 64)
 	love.graphics.setLineStyle("smooth")
 
 	backgroundImage = love.graphics.newImage("graphics/background.jpg")
-	targetImage = love.graphics.newImage("graphics/ring.png")
 	wandaImage = love.graphics.newImage("graphics/wanda.png")
+	for i = 1, 3 do
+		ringImages[i] = love.graphics.newImage("graphics/ring" .. tostring(i) .. ".png")
+	end
 
 	local w, h = love.window.getDimensions()
 	world = love.physics.newWorld(0, 400) -- second parameter is Y gravity
@@ -80,10 +88,8 @@ function love.load()
 	ceiling.fixture:setRestitution(1)
 
 	bot = {}
-	bot.shape = love.physics.newRectangleShape(50, 30)
+	bot.shape = love.physics.newCircleShape(30)
 	bot.body = love.physics.newBody(world, w / 2, 100, "dynamic")
-	x, y, mass, inertia = bot.body:getMassData()
-	bot.body:setMassData(MOUTH_X, MOUTH_Y, mass, inertia * 0.2)
 	bot.fixture = love.physics.newFixture(bot.body, bot.shape)
 	bot.fixture:setRestitution(0.9)
 
@@ -102,29 +108,47 @@ function love.draw()
 	]]
 	love.graphics.draw(backgroundImage, 0, 0)
 
-	local ringW, ringH = targetImage:getDimensions()
+	local ringW, ringH = ringImages[1]:getDimensions()
 	for i = 1, #targets do
 		local target = targets[i]
-		local targetBumpAmount = 1 - math.max(math.min((elapsedTime - target.lastTouchTime) / TARGET_DIE_TIME, 1), 0)
-		love.graphics.setColor(40, 190 + 60 * targetBumpAmount, 0, 240 * targetBumpAmount)
 		local x = target.body:getX()
 		local y = target.body:getY()
-		love.graphics.circle("fill", x, y, TARGET_SIZE * 1.2)
+		local deathTime = (elapsedTime - target.lastTouchTime) / TARGET_DIE_TIME
+
+		--love.graphics.setColor(40, 190 + 60 * targetBumpAmount, 0, 240 * targetBumpAmount)
+		--love.graphics.circle("fill", x, y, TARGET_SIZE * 2)
 		love.graphics.setColor(255, 255, 255, 255)
-		love.graphics.draw(targetImage, x, y, elapsedTime * 0.5, 1, 1, ringW / 2, ringH / 2)
+		local growthTime = (elapsedTime - target.spawnTime) / TARGET_GROW_TIME
+		local scale = 1
+		if growthTime < 1 then
+			if growthTime < 0.5 then
+				scale = slerp(0, 1.2, growthTime / 0.5)
+			else
+				scale = slerp(1.2, 1, (growthTime - 0.5) / 0.5)
+			end
+		elseif target.lastTouchTime > 0 then
+			if deathTime < 0.3 then
+				scale = slerp(1, 1.2, deathTime / 0.3)
+			else
+				scale = slerp(1.2, 0, (deathTime - 0.3) / 0.7)
+			end
+		end
+		love.graphics.draw(ringImages[1 + (math.floor((elapsedTime + target.random * 3) * 10) % 3)], x, y, 0, scale, scale, ringW / 2, ringH / 2)
 	end
 
-	love.graphics.setColor(255, 255, 255, 255)
-
+	
+	love.graphics.setColor(0, 0, 0, 255)
 	if anchor.joint then
 		love.graphics.circle("line", anchor.body:getX(), anchor.body:getY(), 4, 20)
-		local mouthX, mouthY = bot.body:getWorldPoint(MOUTH_X, MOUTH_Y)
+		local mouthX, mouthY = bot.body:getWorldPoint(0, 0)
 		love.graphics.line(anchor.body:getX(), anchor.body:getY(), mouthX, mouthY)
 	end
 
+	love.graphics.setColor(255, 255, 255, 255)
 	local wandaW, wandaH = wandaImage:getDimensions()
 	love.graphics.draw(wandaImage, bot.body:getX(), bot.body:getY(), bot.body:getAngle(), 1, 1, wandaW / 2, wandaH / 2)
 
+	love.graphics.setColor(0, 0, 0, 255)
 	love.graphics.printf(string.format("%03d", score), w - 100, 40, 60, "right")
 end
 
@@ -142,7 +166,9 @@ function makeTarget(x, y)
 	target.body = love.physics.newBody(world, x, y, "static")
 	target.fixture = love.physics.newFixture(target.body, target.shape)
 	target.fixture:setSensor(true)
+	target.spawnTime = elapsedTime
 	target.lastTouchTime = -1
+	target.random = math.random()
 	return target
 end
 
@@ -165,18 +191,16 @@ end
 function makeAnchor(x, y)
 	breakAnchor()
 	anchor.body:setPosition(x,y)
-	local botX, botY = bot.body:getWorldPoint(MOUTH_X, MOUTH_Y)
+	local botX, botY = bot.body:getWorldPoint(0,0)
 	anchor.joint = love.physics.newDistanceJoint(anchor.body, bot.body, x, y, botX, botY)
 
 	-- apply force in the current direction of movement but orthogonal to the joint
 	local toBot = vNorm(vSub(v(botX, botY), v(x, y)))
 	local velX, velY = bot.body:getLinearVelocity()
 	local botDirection = vNorm(v(velX, velY))
-	local impulse = vNorm(vSub(botDirection, vMul(toBot, vDot(botDirection, toBot))), 400)
+	local impulse = vNorm(vSub(botDirection, vMul(toBot, vDot(botDirection, toBot))), 1200)
 	local cX, cY = bot.body:getWorldCenter()
 	bot.body:applyLinearImpulse(impulse.x, impulse.y, cX, cY)
-
-	--bot.body:applyAngularImpulse((math.random() * 2 - 1) * 2000)
 
 	adjustScore(-1)
 end
@@ -226,13 +250,13 @@ function chooseNewTargetPosition()
 	while i < 100 and not foundPosition do
 		local p = randomTargetPosition(w, h)
 		local intersects = false
-		if vDist(p, v(bot.body:getX(), bot.body:getY())) < TARGET_SIZE + NEW_TARGET_MIN_DISTANCE_FROM_PLAYER then
+		if vDist(p, v(bot.body:getX(), bot.body:getY())) < TARGET_SIZE * 3 then
 			intersects = true
 			break
 		end
 		if #targets > 0 then
 			for j = 1, #targets do
-				if vDist(v(targets[j].body:getX(), targets[j].body:getY()), p) < TARGET_SIZE * 3 then
+				if vDist(v(targets[j].body:getX(), targets[j].body:getY()), p) < TARGET_SIZE * 4 then
 					intersects = true
 					break
 				end
@@ -248,7 +272,7 @@ end
 
 function love.keyreleased(key)
 	if not started then
-		for i = 1, 4 do
+		for i = 1, 3 do
 			local p = chooseNewTargetPosition()
 			if p then
 				targets[#targets + 1] = makeTarget(p.x, p.y)
