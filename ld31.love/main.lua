@@ -13,6 +13,8 @@ WALL_THICKNESS = 20
 TARGET_SIZE = 20
 TARGET_DIE_TIME = 0.4
 NEW_TARGET_MIN_DISTANCE_FROM_PLAYER = 2 * TARGET_SIZE
+MOUTH_X = -32
+MOUTH_Y = 3
 
 local score = 0
 local scoreChangedTime = -1
@@ -80,6 +82,8 @@ function love.load()
 	bot = {}
 	bot.shape = love.physics.newRectangleShape(50, 30)
 	bot.body = love.physics.newBody(world, w / 2, 100, "dynamic")
+	x, y, mass, inertia = bot.body:getMassData()
+	bot.body:setMassData(MOUTH_X, MOUTH_Y, mass, inertia * 0.2)
 	bot.fixture = love.physics.newFixture(bot.body, bot.shape)
 	bot.fixture:setRestitution(0.9)
 
@@ -111,14 +115,15 @@ function love.draw()
 	end
 
 	love.graphics.setColor(255, 255, 255, 255)
-	local wandaW, wandaH = wandaImage:getDimensions()
-	love.graphics.draw(wandaImage, bot.body:getX(), bot.body:getY(), bot.body:getAngle(), 1, 1, wandaW / 2, wandaH / 2)
 
 	if anchor.joint then
 		love.graphics.circle("line", anchor.body:getX(), anchor.body:getY(), 4, 20)
-		local mouthX, mouthY = bot.body:getWorldPoint(0, 0)---32,3)
+		local mouthX, mouthY = bot.body:getWorldPoint(MOUTH_X, MOUTH_Y)
 		love.graphics.line(anchor.body:getX(), anchor.body:getY(), mouthX, mouthY)
 	end
+
+	local wandaW, wandaH = wandaImage:getDimensions()
+	love.graphics.draw(wandaImage, bot.body:getX(), bot.body:getY(), bot.body:getAngle(), 1, 1, wandaW / 2, wandaH / 2)
 
 	love.graphics.printf(string.format("%03d", score), w - 100, 40, 60, "right")
 end
@@ -160,7 +165,7 @@ end
 function makeAnchor(x, y)
 	breakAnchor()
 	anchor.body:setPosition(x,y)
-	local botX, botY = bot.body:getWorldPoint(0, 0)
+	local botX, botY = bot.body:getWorldPoint(MOUTH_X, MOUTH_Y)
 	anchor.joint = love.physics.newDistanceJoint(anchor.body, bot.body, x, y, botX, botY)
 
 	-- apply force in the current direction of movement but orthogonal to the joint
@@ -168,9 +173,10 @@ function makeAnchor(x, y)
 	local velX, velY = bot.body:getLinearVelocity()
 	local botDirection = vNorm(v(velX, velY))
 	local impulse = vNorm(vSub(botDirection, vMul(toBot, vDot(botDirection, toBot))), 400)
-	bot.body:applyLinearImpulse(impulse.x, impulse.y)
+	local cX, cY = bot.body:getWorldCenter()
+	bot.body:applyLinearImpulse(impulse.x, impulse.y, cX, cY)
 
-	bot.body:applyAngularImpulse((math.random() * 2 - 1) * 2000)
+	--bot.body:applyAngularImpulse((math.random() * 2 - 1) * 2000)
 
 	adjustScore(-1)
 end
