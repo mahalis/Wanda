@@ -7,7 +7,8 @@ local leftWall, rightWall, floor, bot, anchor
 local targets = {}
 
 local elapsedTime = 0
-local started = false
+local playing = false
+local gameOver = false
 
 WALL_THICKNESS = 20
 TARGET_SIZE = 20
@@ -22,6 +23,7 @@ local scoreChangedTime = -1
 local streak = 0
 local streakChangedTime = -1
 local lastStreak = 0
+local longestStreak = 0
 local hitTargetWithLastAnchor = false
 
 local backgroundImage, wandaImage
@@ -30,6 +32,8 @@ local ringImages = {}
 local scoreBigFont, scoreLittleFont
 
 local titleImages = {}
+local endScoreImage, endStreakImage, endImageIndex
+local endImages = {}
 
 -- need to keep track of fixtures for world callback collisions
 
@@ -51,7 +55,9 @@ local function contactBegan(fixture1, fixture2, contact)
 		end
 
 		if fixture1 == floor.fixture or fixture2 == floor.fixture then
-			-- what happens when you hit the floor?
+			gameOver = true
+			playing = false
+			endImageIndex = 1 + math.floor(math.random() * 9)
 		end
 	end
 end
@@ -65,6 +71,7 @@ end
 function love.load()
 	love.graphics.setBackgroundColor(56, 60, 64)
 	love.graphics.setLineStyle("smooth")
+	math.randomseed(os.time())
 
 	-- images
 
@@ -79,6 +86,11 @@ function love.load()
 		titleImages[i] = love.graphics.newImage("graphics/" .. titleImageNames[i] .. ".png")
 	end
 
+	endScoreImage = love.graphics.newImage("graphics/final score.png")
+	endStreakImage = love.graphics.newImage("graphics/longest streak.png")
+	for i = 1, 9 do
+		endImages[i] = love.graphics.newImage("graphics/end/end " .. tostring(i) .. ".png")
+	end
 	-- fonts
 
 	scoreBigFont = love.graphics.newFont(30)
@@ -106,7 +118,7 @@ function love.load()
 	floor.shape = love.physics.newRectangleShape(w - 2 * WALL_THICKNESS, WALL_THICKNESS)
 	floor.body = love.physics.newBody(world, w / 2, h * 1.25)
 	floor.fixture = love.physics.newFixture(floor.body, floor.shape)
-	floor.fixture:setRestitution(1)
+	floor.fixture:setRestitution(0)
 
 	ceiling = {}
 	ceiling.shape = love.physics.newRectangleShape(w - 2 * WALL_THICKNESS, WALL_THICKNESS)
@@ -139,7 +151,9 @@ function love.draw()
 	
 	love.graphics.draw(backgroundImage, 0, 0)
 
-	if started then
+	local baseColor = {60, 80, 100} -- used below by the end-game stuff (to draw score numbers) and the score stuff (guess)
+
+	if playing then
 		local ringW, ringH = ringImages[1]:getDimensions()
 		for i = 1, #targets do
 			local target = targets[i]
@@ -174,11 +188,28 @@ function love.draw()
 		end
 	else
 		-- either title screen or end-game state
-		local titleImageYs = {158, 228, 300, 372, 480}
-		for i = 1, #titleImages do
-			local image = titleImages[i]
-			local imageW, imageH = image:getDimensions()
-			love.graphics.draw(image, w / 2, titleImageYs[i], 0, 1, 1, imageW / 2, 0)
+		-- TODO: make these drift up / fade in
+		if not gameOver then
+			-- title screen
+			local titleImageYs = {158, 228, 300, 372, 480}
+			for i = 1, #titleImages do
+				local image = titleImages[i]
+				local imageW, imageH = image:getDimensions()
+				love.graphics.draw(image, w / 2, titleImageYs[i], 0, 1, 1, imageW / 2, 0)
+			end
+		else
+			-- game over
+			local endImage = endImages[endImageIndex]
+			local imageW, imageH = endImage:getDimensions()
+			love.graphics.draw(endImage, w / 2, 230, 0, 1, 1, imageW / 2, 0)
+			imageW, imageH = endScoreImage:getDimensions()
+			love.graphics.draw(endScoreImage, w / 2, 370, 0, 1, 1, imageW / 2, 0)
+			imageW, imageH = endStreakImage:getDimensions()
+			love.graphics.draw(endStreakImage, w / 2, 450, 0, 1, 1, imageW / 2, 0)
+			love.graphics.setColor(baseColor[1], baseColor[2], baseColor[3], 255)
+			love.graphics.setFont(scoreBigFont)
+			love.graphics.printf(tostring(score), w / 2 - 30, 390, 60, "center")
+			love.graphics.printf(tostring(streak), w / 2 - 30, 468, 60, "center")
 		end
 	end
 
@@ -186,8 +217,9 @@ function love.draw()
 	local wandaW, wandaH = wandaImage:getDimensions()
 	love.graphics.draw(wandaImage, bot.body:getX(), bot.body:getY(), bot.body:getAngle(), 1, 1, wandaW / 2, wandaH / 2)
 
-	if started then
-		local baseColor = {60, 80, 100}
+	-- score
+
+	if playing then
 		local goodColor = {20, 140, 60}
 		local badColor = {150, 70, 30}
 		local scoreColor = baseColor
@@ -208,7 +240,6 @@ function love.draw()
 		love.graphics.printf("score", 80, h - 38, 60, "left")
 		love.graphics.setColor(streakColor[1], streakColor[2], streakColor[3], 128)
 		love.graphics.printf("streak", w - 122, h - 38, 60, "right")
-		-- 150, 70, 30
 	end
 end
 
@@ -225,6 +256,9 @@ function setStreak(value)
 	streak = value
 	if streak ~= lastStreak then
 		streakChangedTime = elapsedTime
+	end
+	if streak > longestStreak then
+		longestStreak = streak
 	end
 end
 
@@ -282,7 +316,7 @@ function love.update(dt)
 	-- TODO: if we go into slow motion, just multiply this dt value in advance before using it below
 	elapsedTime = elapsedTime + dt
 
-	if started then
+	if playing then
 		world:update(dt)
 		for i = 1, #targets do
 			if targets[i].lastTouchTime > 0 and elapsedTime > targets[i].lastTouchTime + TARGET_DIE_TIME then
@@ -306,12 +340,14 @@ function reset()
 	breakAnchor()
 	score = 0
 	streak = 0
+	longestStreak = 0
 
 	local w, h = love.window.getDimensions()
 	bot.body:setPosition(w / 2, h * 0.2)
 	bot.body:setAngularVelocity(0)
 	bot.body:setLinearVelocity(0, 0)
-	started = false
+	playing = false
+	gameOver = false
 end
 
 function start()
@@ -321,11 +357,14 @@ function start()
 			targets[#targets + 1] = makeTarget(p.x, p.y)
 		end
 	end
-	started = true
+	playing = true
 end
 
 function love.mousepressed(x, y, button)
-	if not started then
+	if not playing then
+		if gameOver then
+			reset()
+		end
 		start()
 	else
 		makeAnchor(x,y)
