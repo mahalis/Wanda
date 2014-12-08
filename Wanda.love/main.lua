@@ -282,7 +282,7 @@ function love.draw()
 			love.graphics.setColor(baseColor[1], baseColor[2], baseColor[3], titleInterpolate(0, 255, time))
 			love.graphics.setFont(scoreBigFont)
 			love.graphics.printf(tostring(score), w / 2 - 30, 390, 60, "center")
-			love.graphics.printf(tostring(streak), w / 2 - 30, 468, 60, "center")
+			love.graphics.printf(tostring(longestStreak), w / 2 - 30, 468, 60, "center")
 		end
 	end
 
