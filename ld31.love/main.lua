@@ -10,6 +10,7 @@ local elapsedTime = 0
 local titleStartTime = 0
 local playing = false
 local gameOver = false
+local gameOverTime = 0
 
 WALL_THICKNESS = 20
 TARGET_SIZE = 20
@@ -67,6 +68,7 @@ local function contactBegan(fixture1, fixture2, contact)
 			gameOver = true
 			playing = false
 			endImageIndex = 1 + math.floor(math.random() * 9)
+			gameOverTime = elapsedTime
 
 			return
 		end
@@ -234,6 +236,8 @@ function love.draw()
 				love.graphics.draw(image, w / 2, titleImageYs[i] + yOffset, 0, 1, 1, imageW / 2, 0)
 			end
 		else
+			local time = (elapsedTime - gameOverTime) / TITLE_TIME
+			love.graphics.setColor(255, 255, 255, titleInterpolate(0, 255, time))
 			-- game over
 			local endImage = endImages[endImageIndex]
 			local imageW, imageH = endImage:getDimensions()
@@ -242,7 +246,7 @@ function love.draw()
 			love.graphics.draw(endScoreImage, w / 2, 370, 0, 1, 1, imageW / 2, 0)
 			imageW, imageH = endStreakImage:getDimensions()
 			love.graphics.draw(endStreakImage, w / 2, 450, 0, 1, 1, imageW / 2, 0)
-			love.graphics.setColor(baseColor[1], baseColor[2], baseColor[3], 255)
+			love.graphics.setColor(baseColor[1], baseColor[2], baseColor[3], titleInterpolate(0, 255, time))
 			love.graphics.setFont(scoreBigFont)
 			love.graphics.printf(tostring(score), w / 2 - 30, 390, 60, "center")
 			love.graphics.printf(tostring(streak), w / 2 - 30, 468, 60, "center")
