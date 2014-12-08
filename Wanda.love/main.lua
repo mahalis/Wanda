@@ -20,6 +20,8 @@ TARGET_GROW_TIME = 0.2
 SCORE_BLINK_TIME = 0.3
 TITLE_TIME = 4 -- duration of title rise/fade animation
 
+LINE_RESOLUTION = 4 -- pixels per segment
+
 local score = 0
 local lastScore = 0
 local scoreChangedTime = -1
@@ -177,6 +179,10 @@ function titleInterpolate(a, b, f)
 	return a + (b - a) * (1 - math.pow(1 - f, 5))
 end
 
+function vectorLine(from, to)
+	love.graphics.line(from.x, from.y, to.x, to.y)
+end
+
 function love.draw()
 	love.graphics.setColor(255, 255, 255, 255)
 	local w, h = love.window.getDimensions()
@@ -212,11 +218,38 @@ function love.draw()
 		end
 
 		
-		love.graphics.setColor(0, 0, 0, 255)
 		if anchor.joint then
-			love.graphics.circle("fill", anchor.body:getX(), anchor.body:getY(), 4, 20)
-			local mouthX, mouthY = bot.body:getWorldPoint(0, 0)
-			love.graphics.line(anchor.body:getX(), anchor.body:getY(), mouthX, mouthY)
+			local fromX, fromY = anchor.body:getX(), anchor.body:getY()
+			local toX, toY = bot.body:getWorldPoint(0, 0)
+
+
+
+			love.graphics.setLineWidth(1)
+			local from = v(fromX, fromY)
+			local to = v(toX, toY)
+			local direction = vNorm(vSub(to, from))
+			local right = vRight(direction)
+			local lastP = from
+			local distance = vDist(from, to)
+			local tFreq = distance / 40
+			local segments = math.ceil(distance / LINE_RESOLUTION)
+			for i = 1, 5 do
+				-- purples!
+				love.graphics.setColor(100 + 120 * math.random(), 80 + 40 * math.random(), 180 + math.random() * 50, 200)
+				local timeOffset = i * 3
+				for j = 1, segments do
+					local t = j / segments
+					local p = vMix(from, to, t)
+					local rightAmount = math.sin(t * (tFreq - 0.3 * i) * math.pi + (elapsedTime + timeOffset) * 10)
+					rightAmount = rightAmount * (1 - math.cos(t * 2 * math.pi)) * 0.5
+					p = vAdd(p, vMul(right, rightAmount * 8))
+					vectorLine(lastP, p)
+					lastP = p
+				end
+			end
+
+			love.graphics.setColor(0, 0, 0, 255)
+			--love.graphics.circle("fill", anchor.body:getX(), anchor.body:getY(), 3, 20)
 		end
 	else
 		-- either title screen or end-game state

@@ -46,3 +46,7 @@ function vRand(s)
 	local boxRandom = v(math.random() * 2 - 1, math.random() * 2 - 1)
 	return vMul(boxRandom, vLen(boxRandom) * (s or 1))
 end
+
+function vMix(a, b, s)
+	return vAdd(a, vMul(vSub(b, a), s))
+end
