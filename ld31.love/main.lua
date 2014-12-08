@@ -35,6 +35,8 @@ local titleImages = {}
 local endScoreImage, endStreakImage, endImageIndex
 local endImages = {}
 
+local dingSound, successSound
+
 -- need to keep track of fixtures for world callback collisions
 
 local function contactBegan(fixture1, fixture2, contact)
@@ -50,7 +52,12 @@ local function contactBegan(fixture1, fixture2, contact)
 				setStreak(streak + 1)
 
 				target.lastTouchTime = elapsedTime -- we’ll remove it in update() later — not safe to do that in physics callback
-				break
+
+				-- success sound
+				successSound:rewind()
+				successSound:play()
+
+				return
 			end
 		end
 
@@ -58,6 +65,13 @@ local function contactBegan(fixture1, fixture2, contact)
 			gameOver = true
 			playing = false
 			endImageIndex = 1 + math.floor(math.random() * 9)
+
+			return
+		end
+
+		-- play a sound for anything else that’s not the ceiling, i.e. pretty much just the walls
+		if fixture1 ~= ceiling.fixture and fixture2 ~= ceiling.fixture then
+			dingSound:play()
 		end
 	end
 end
@@ -91,6 +105,14 @@ function love.load()
 	for i = 1, 9 do
 		endImages[i] = love.graphics.newImage("graphics/end/end " .. tostring(i) .. ".png")
 	end
+
+	-- sounds
+	dingSound = love.audio.newSource("sounds/ding.wav", "static")
+	dingSound:setPitch(0.5)
+	dingSound:setVolume(0.6)
+	successSound = love.audio.newSource("sounds/chord.wav", "static")
+	successSound:setVolume(0.4)
+
 	-- fonts
 
 	scoreBigFont = love.graphics.newFont(30)
@@ -104,13 +126,13 @@ function love.load()
 
 	leftWall = {}
 	leftWall.shape = love.physics.newRectangleShape(WALL_THICKNESS, h * 1.5)
-	leftWall.body = love.physics.newBody(world, WALL_THICKNESS / 2, h / 2)
+	leftWall.body = love.physics.newBody(world, 0, h / 2)
 	leftWall.fixture = love.physics.newFixture(leftWall.body, leftWall.shape)
 	leftWall.fixture:setRestitution(1)
 
 	rightWall = {}
 	rightWall.shape = love.physics.newRectangleShape(WALL_THICKNESS, h * 1.5)
-	rightWall.body = love.physics.newBody(world, w - WALL_THICKNESS / 2, h / 2)
+	rightWall.body = love.physics.newBody(world, w, h / 2)
 	rightWall.fixture = love.physics.newFixture(rightWall.body, rightWall.shape)
 	rightWall.fixture:setRestitution(1)
 
@@ -122,7 +144,7 @@ function love.load()
 
 	ceiling = {}
 	ceiling.shape = love.physics.newRectangleShape(w - 2 * WALL_THICKNESS, WALL_THICKNESS)
-	ceiling.body = love.physics.newBody(world, w / 2, WALL_THICKNESS / 2)
+	ceiling.body = love.physics.newBody(world, w / 2, -h * .25)
 	ceiling.fixture = love.physics.newFixture(ceiling.body, ceiling.shape)
 	ceiling.fixture:setRestitution(1)
 
