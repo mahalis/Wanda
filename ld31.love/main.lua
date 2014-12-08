@@ -7,6 +7,7 @@ local leftWall, rightWall, floor, bot, anchor
 local targets = {}
 
 local elapsedTime = 0
+local titleStartTime = 0
 local playing = false
 local gameOver = false
 
@@ -16,6 +17,7 @@ TARGET_DIE_TIME = 0.4
 NEW_TARGET_MIN_DISTANCE_FROM_PLAYER = 2 * TARGET_SIZE
 TARGET_GROW_TIME = 0.2
 SCORE_BLINK_TIME = 0.3
+TITLE_TIME = 4 -- duration of title rise/fade animation
 
 local score = 0
 local lastScore = 0
@@ -167,6 +169,12 @@ function mixColors(a, b, f)
 	return {a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2]), a[3] + f * (b[3] - a[3])}
 end
 
+-- mix two values along the curve used for title stuff
+function titleInterpolate(a, b, f)
+	f = math.max(0, math.min(1, f))
+	return a + (b - a) * (1 - math.pow(1 - f, 5))
+end
+
 function love.draw()
 	love.graphics.setColor(255, 255, 255, 255)
 	local w, h = love.window.getDimensions()
@@ -214,10 +222,16 @@ function love.draw()
 		if not gameOver then
 			-- title screen
 			local titleImageYs = {158, 228, 300, 372, 480}
+			local titleDelays = {2, 3, 3, 2, 0}
+			local accumulatedDelay = 0
 			for i = 1, #titleImages do
+				local time = (elapsedTime - accumulatedDelay - titleStartTime) / TITLE_TIME
+				accumulatedDelay = accumulatedDelay + titleDelays[i]
+				love.graphics.setColor(255, 255, 255, titleInterpolate(0, 255, time))
+				local yOffset = titleInterpolate(40, 0, time) -- one second for now, may change it
 				local image = titleImages[i]
 				local imageW, imageH = image:getDimensions()
-				love.graphics.draw(image, w / 2, titleImageYs[i], 0, 1, 1, imageW / 2, 0)
+				love.graphics.draw(image, w / 2, titleImageYs[i] + yOffset, 0, 1, 1, imageW / 2, 0)
 			end
 		else
 			-- game over
@@ -366,10 +380,12 @@ function reset()
 
 	local w, h = love.window.getDimensions()
 	bot.body:setPosition(w / 2, h * 0.2)
+	bot.body:setAngle(0)
 	bot.body:setAngularVelocity(0)
 	bot.body:setLinearVelocity(0, 0)
 	playing = false
 	gameOver = false
+	titleStartTime = elapsedTime
 end
 
 function start()
@@ -386,8 +402,9 @@ function love.mousepressed(x, y, button)
 	if not playing then
 		if gameOver then
 			reset()
+		else
+			start()
 		end
-		start()
 	else
 		makeAnchor(x,y)
 	end
